@@ -183,7 +183,3 @@ managemoney/
 
 1. ไปที่ [railway.app](https://railway.app)
 2. เชื่อม GitHub repo → ตั้ง env vars → Deploy
-
-## 📝 License
-
-MIT
