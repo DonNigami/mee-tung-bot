@@ -3,6 +3,7 @@
  * รับ event จาก LINE แล้วส่งต่อให้ message handler
  */
 const line = require('@line/bot-sdk');
+const { Readable } = require('stream');
 const { config } = require('../config');
 const { handleTextMessage } = require('../handlers/messageHandler');
 const { GENERAL_RESPONSES } = require('../messages');
@@ -31,23 +32,32 @@ async function handleEvent(event) {
 
 async function handleImageEvent(event, userId) {
   try {
-    console.log(`🖼️  [${userId || 'unknown'}] Received image event`);
+    console.log(`🖼️  [${userId || 'unknown'}] Received image event, messageId: ${event.message.id}`);
 
-    // ดึงรูปภาพจาก LINE API (returns ReadableStream in Node.js)
-    const imageStream = await lineClient.getMessageContent(event.message.id);
+    // ดึงรูปภาพจาก LINE API
+    const imageResult = await lineClient.getMessageContent(event.message.id);
+    console.log('📦 Image result type:', typeof imageResult, imageResult && imageResult.constructor && imageResult.constructor.name);
 
-    // แปลง stream เป็น buffer
-    const chunks = [];
-    for await (const chunk of imageStream) {
-      chunks.push(chunk);
+    let buffer;
+    if (Buffer.isBuffer(imageResult)) {
+      buffer = imageResult;
+    } else if (imageResult instanceof Uint8Array) {
+      buffer = Buffer.from(imageResult);
+    } else if (typeof imageResult.pipe === 'function') {
+      // Node.js ReadableStream
+      buffer = await streamToBuffer(imageResult);
+    } else if (imageResult && typeof imageResult.pipe === 'function') {
+      buffer = await streamToBuffer(imageResult);
+    } else {
+      // fallback: treat as whatever we got
+      buffer = Buffer.from(String(imageResult));
     }
-    const buffer = Buffer.concat(chunks);
+
+    console.log(`📦 Image size: ${buffer.length} bytes`);
     const base64 = buffer.toString('base64');
 
-    // ตรวจสอบ mime type — LINE ส่งเป็น JPEG หรือ PNG
     const mimeType = 'image/jpeg';
 
-    // ส่งให้ message handler ประมวลผล
     const payload = await handleTextMessage(userId, null, {
       type: 'image',
       imageBase64: base64,
@@ -57,9 +67,18 @@ async function handleImageEvent(event, userId) {
 
     return replyPayload(event.replyToken, payload);
   } catch (error) {
-    console.error('❌ Image handle error:', error.message);
+    console.error('❌ Image handle error:', error.message, error.stack);
     return replyPayload(event.replyToken, GENERAL_RESPONSES.error);
   }
+}
+
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
 }
 
 async function replyPayload(replyToken, payload) {
