@@ -1,4 +1,4 @@
-# 💰 มีตังค์ LINE Bot
+# 💰 mee-tung-bot LINE Bot
 
 LINE Bot บันทึกรายรับรายจ่าย ด้วย Gemini AI + Supabase
 

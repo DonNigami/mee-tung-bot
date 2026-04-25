@@ -1,5 +1,5 @@
 /**
- * ManageMoney LINE Bot
+ * mee-tung-bot LINE Bot
  * Entry point สำหรับ start server
  */
 const { createApp } = require('./app');
@@ -22,7 +22,7 @@ async function startServer() {
     app.listen(config.port, () => {
       console.log('');
       console.log('╔══════════════════════════════════════════╗');
-      console.log('║   💰 ManageMoney LINE Bot Started!       ║');
+      console.log('║   💰 mee-tung-bot LINE Bot Started!     ║');
       console.log('╠══════════════════════════════════════════╣');
       console.log(`║   🌐 Port: ${config.port}                          ║`);
       console.log('║   📡 Webhook: /webhook                   ║');

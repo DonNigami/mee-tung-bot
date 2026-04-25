@@ -15,7 +15,7 @@ function createApp() {
   app.get('/', (req, res) => {
     res.json({
       status: 'ok',
-      name: 'ManageMoney LINE Bot',
+      name: 'mee-tung-bot',
       version: '1.0.0',
       timestamp: new Date().toISOString(),
     });
