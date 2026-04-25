@@ -9,8 +9,11 @@ const { getToday, getYesterday } = require('../utils/dateParser');
 // ─── Initialize Gemini ─────────────────────────────────
 const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
 
+// Use same model as configured in config.gemini.model (default: gemini-1.5-flash)
+const visionModelName = config.gemini.model || 'gemini-1.5-flash';
+
 const model = genAI.getGenerativeModel({
-  model: 'gemini-2.0-flash',
+  model: visionModelName,
   generationConfig: {
     responseMimeType: 'application/json',
     temperature: 0.1,
