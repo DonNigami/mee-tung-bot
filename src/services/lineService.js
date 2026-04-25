@@ -60,6 +60,10 @@ async function handleImageEvent(event, userId) {
     console.error('❌ Image handle error:', error.message);
     if (error.response) {
       console.error('   LINE API error:', error.response.status, error.response.statusText);
+      // LINE 404 = content unavailable (expired or blocked)
+      if (error.response.status === 404) {
+        return replyPayload(event.replyToken, '📸 รูปไม่สามารถดึงได้ในขณะนี้ ลองส่งใหม่อีกครั้ง หรือพิมพ์รายละเอียดแทนได้เลยค่ะ 💁');
+      }
     }
     return replyPayload(event.replyToken, GENERAL_RESPONSES.error);
   }
