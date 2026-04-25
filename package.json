@@ -1,5 +1,5 @@
 {
-  "name": "managemoney-line-bot",
+  "name": "mai-tang-bot",
   "version": "1.0.0",
   "description": "LINE Bot บันทึกรายรับรายจ่าย ด้วย Gemini AI + Supabase",
   "main": "src/index.js",
