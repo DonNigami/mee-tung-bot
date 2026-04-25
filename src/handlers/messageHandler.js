@@ -1,4 +1,5 @@
 const { parseExpenseMessage } = require('../services/geminiService');
+const { parseBillFromImage } = require('../services/geminiVisionService');
 const { appendTransaction, getTransactions } = require('../services/transactionService');
 const {
   GENERAL_RESPONSES,
@@ -17,7 +18,18 @@ const { clearPending, getPending, setPending } = require('../state/pendingConfir
 const CONFIRM_YES = ['ใช่', 'yes', 'ใช่ครับ', 'ใช่ค่ะ', 'ตกลง', 'ok', 'โอเค', 'ได้', 'บันทึก', 'ถูก', 'ถูกต้อง', '✅', '👍'];
 const CONFIRM_NO = ['ไม่', 'no', 'ไม่ใช่', 'ไม่ถูก', 'ผิด', 'ยกเลิก', 'cancel', '❌', '👎'];
 
-async function handleTextMessage(userId, userMessage) {
+/**
+ * Main entry point for all messages (text or image)
+ * @param {string|null} userId - LINE user ID
+ * @param {string|null} userMessage - text message (null if image)
+ * @param {object|null} extra - extra data (e.g., image data)
+ */
+async function handleTextMessage(userId, userMessage, extra = null) {
+  // ─── Image handling ───────────────────────────────
+  if (extra && extra.type === 'image') {
+    return handleImageMessage(userId, extra);
+  }
+
   const pendingReply = await handlePendingConfirmation(userId, userMessage);
   if (pendingReply) return pendingReply;
 
@@ -58,6 +70,51 @@ async function handleTextMessage(userId, userMessage) {
     return generateConfirmQuickReply(transactionData);
   } catch (error) {
     console.error('❌ Error handling message:', error);
+    return GENERAL_RESPONSES.error;
+  }
+}
+
+/**
+ * Handle image message (bill/receipt/slip)
+ */
+async function handleImageMessage(userId, imageData) {
+  try {
+    console.log(`🖼️  [${userId || 'unknown'}] Processing image...`);
+
+    const parsed = await parseBillFromImage(imageData.imageBase64, imageData.mimeType);
+    console.log('🤖 Gemini Vision:', JSON.stringify(parsed));
+
+    // ถ้าอ่านบิลไม่ได้
+    if (parsed.confidence === 0 || !parsed.item) {
+      return {
+        type: 'text',
+        text: 'อ่านบิลไม่ได้ครับ 🙏 ลองถ่ายรูปใหม่ให้ชัดขึ้น หรือพิมพ์รายการมาได้เลย เช่น "กินข้าว 80"',
+      };
+    }
+
+    // ถ้าไม่มี amount ให้ถาม
+    if (parsed.amount === null || parsed.amount === undefined) {
+      return {
+        type: 'text',
+        text: `📋 อ่านบิลได้แล้วครับ:\n\n🏪 รายการ: ${parsed.item}\n📅 วันที่: ${parsed.date}\n\nแต่ไม่เจอจำนวนเงินครับ — พิมพ์จำนวนเงินมาได้เลย เช่น "150" หรือ "บันทึก 150 บาท"`,
+      };
+    }
+
+    const transactionData = toTransactionData(parsed);
+
+    // ถ้า confidence สูง → บันทึกเลย
+    if (parsed.confidence >= 0.7) {
+      return saveAndBuildReply(transactionData, userId);
+    }
+
+    // confidence ต่ำ → ถามยืนยันก่อน
+    if (userId) {
+      setPending(userId, transactionData);
+    }
+
+    return generateConfirmQuickReply(transactionData);
+  } catch (error) {
+    console.error('❌ Image handle error:', error);
     return GENERAL_RESPONSES.error;
   }
 }

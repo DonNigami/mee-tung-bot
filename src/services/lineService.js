@@ -14,15 +14,52 @@ const lineClient = new line.messagingApi.MessagingApiClient({
 async function handleEvent(event) {
   if (event.type !== 'message') return null;
 
-  if (event.message.type !== 'text') {
-    return replyPayload(event.replyToken, GENERAL_RESPONSES.notText);
+  const userId = event.source?.userId || null;
+
+  if (event.message.type === 'text') {
+    const userMessage = event.message.text.trim();
+    const payload = await handleTextMessage(userId, userMessage);
+    return replyPayload(event.replyToken, payload);
   }
 
-  const userId = event.source?.userId || null;
-  const userMessage = event.message.text.trim();
-  const payload = await handleTextMessage(userId, userMessage);
+  if (event.message.type === 'image') {
+    return handleImageEvent(event, userId);
+  }
 
-  return replyPayload(event.replyToken, payload);
+  return replyPayload(event.replyToken, GENERAL_RESPONSES.notText);
+}
+
+async function handleImageEvent(event, userId) {
+  try {
+    console.log(`🖼️  [${userId || 'unknown'}] Received image event`);
+
+    // ดึงรูปภาพจาก LINE API (returns ReadableStream in Node.js)
+    const imageStream = await lineClient.getMessageContent(event.message.id);
+
+    // แปลง stream เป็น buffer
+    const chunks = [];
+    for await (const chunk of imageStream) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    const base64 = buffer.toString('base64');
+
+    // ตรวจสอบ mime type — LINE ส่งเป็น JPEG หรือ PNG
+    const mimeType = 'image/jpeg';
+
+    // ส่งให้ message handler ประมวลผล
+    const payload = await handleTextMessage(userId, null, {
+      type: 'image',
+      imageBase64: base64,
+      mimeType,
+      messageId: event.message.id,
+    });
+
+    return replyPayload(event.replyToken, payload);
+  } catch (error) {
+    console.error('❌ Image handle error:', error.message);
+    return replyPayload(event.replyToken, GENERAL_RESPONSES.error);
+  }
 }
 
 async function replyPayload(replyToken, payload) {
