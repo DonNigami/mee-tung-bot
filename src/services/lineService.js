@@ -8,6 +8,7 @@ const { handleTextMessage } = require('../handlers/messageHandler');
 const { GENERAL_RESPONSES } = require('../messages');
 
 const LINE_API_BASE = 'https://api.line.me/v2';
+const LINE_API_DATA_BASE = 'https://api-data.line.me/v2';
 
 async function handleEvent(event) {
   if (event.type !== 'message') return null;
@@ -32,8 +33,9 @@ async function handleImageEvent(event, userId) {
     console.log(`🖼️  [${userId || 'unknown'}] Received image event, messageId: ${event.message.id}`);
 
     // ดึงรูปภาพจาก LINE API โดยตรงด้วย axios
+    // ใช้ api-data.line.me สำหรับ binary content
     const response = await axios.get(
-      `${LINE_API_BASE}/bot/message/${event.message.id}/content`,
+      `${LINE_API_DATA_BASE}/bot/message/${event.message.id}/content`,
       {
         headers: {
           Authorization: `Bearer ${config.line.channelAccessToken}`,
