@@ -2,15 +2,12 @@
  * LINE Service
  * รับ event จาก LINE แล้วส่งต่อให้ message handler
  */
-const line = require('@line/bot-sdk');
-const { Readable } = require('stream');
+const axios = require('axios');
 const { config } = require('../config');
 const { handleTextMessage } = require('../handlers/messageHandler');
 const { GENERAL_RESPONSES } = require('../messages');
 
-const lineClient = new line.messagingApi.MessagingApiClient({
-  channelAccessToken: config.line.channelAccessToken,
-});
+const LINE_API_BASE = 'https://api.line.me/v2';
 
 async function handleEvent(event) {
   if (event.type !== 'message') return null;
@@ -34,29 +31,22 @@ async function handleImageEvent(event, userId) {
   try {
     console.log(`🖼️  [${userId || 'unknown'}] Received image event, messageId: ${event.message.id}`);
 
-    // ดึงรูปภาพจาก LINE API
-    const imageResult = await lineClient.getMessageContent(event.message.id);
-    console.log('📦 Image result type:', typeof imageResult, imageResult && imageResult.constructor && imageResult.constructor.name);
+    // ดึงรูปภาพจาก LINE API โดยตรงด้วย axios
+    const response = await axios.get(
+      `${LINE_API_BASE}/bot/message/${event.message.id}/content`,
+      {
+        headers: {
+          Authorization: `Bearer ${config.line.channelAccessToken}`,
+        },
+        responseType: 'arraybuffer',
+      }
+    );
 
-    let buffer;
-    if (Buffer.isBuffer(imageResult)) {
-      buffer = imageResult;
-    } else if (imageResult instanceof Uint8Array) {
-      buffer = Buffer.from(imageResult);
-    } else if (typeof imageResult.pipe === 'function') {
-      // Node.js ReadableStream
-      buffer = await streamToBuffer(imageResult);
-    } else if (imageResult && typeof imageResult.pipe === 'function') {
-      buffer = await streamToBuffer(imageResult);
-    } else {
-      // fallback: treat as whatever we got
-      buffer = Buffer.from(String(imageResult));
-    }
-
-    console.log(`📦 Image size: ${buffer.length} bytes`);
+    const buffer = Buffer.from(response.data);
     const base64 = buffer.toString('base64');
+    const mimeType = response.headers['content-type'] || 'image/jpeg';
 
-    const mimeType = 'image/jpeg';
+    console.log(`📦 Image size: ${buffer.length} bytes, mime: ${mimeType}`);
 
     const payload = await handleTextMessage(userId, null, {
       type: 'image',
@@ -67,22 +57,20 @@ async function handleImageEvent(event, userId) {
 
     return replyPayload(event.replyToken, payload);
   } catch (error) {
-    console.error('❌ Image handle error:', error.message, error.stack);
+    console.error('❌ Image handle error:', error.message);
+    if (error.response) {
+      console.error('   LINE API error:', error.response.status, error.response.statusText);
+    }
     return replyPayload(event.replyToken, GENERAL_RESPONSES.error);
   }
 }
 
-function streamToBuffer(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
-
 async function replyPayload(replyToken, payload) {
   try {
+    const line = require('@line/bot-sdk');
+    const lineClient = new line.messagingApi.MessagingApiClient({
+      channelAccessToken: config.line.channelAccessToken,
+    });
     const message = typeof payload === 'string' ? { type: 'text', text: payload } : payload;
     return await lineClient.replyMessage({
       replyToken,

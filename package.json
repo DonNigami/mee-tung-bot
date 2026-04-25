@@ -19,6 +19,7 @@
     "@google/generative-ai": "^0.24.0",
     "@line/bot-sdk": "^9.6.0",
     "@supabase/supabase-js": "^2.104.0",
+    "axios": "^1.15.2",
     "dotenv": "^16.4.7",
     "express": "^4.21.2"
   }
